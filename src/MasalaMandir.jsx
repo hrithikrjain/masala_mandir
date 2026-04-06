@@ -506,7 +506,15 @@ const CATS = [
 
 function ScrollSpreadSection({ onCatClick }) {
   const sectionRef = useRef(null);
-  const [progress, setProgress] = useState(0); // 0 = clustered, 1 = spread
+  const [progress, setProgress] = useState(0);
+  const [isMob, setIsMob] = useState(false);
+
+  useEffect(() => {
+    const checkMob = () => setIsMob(window.innerWidth <= 768);
+    checkMob();
+    window.addEventListener("resize", checkMob);
+    return () => window.removeEventListener("resize", checkMob);
+  }, []);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -514,7 +522,6 @@ function ScrollSpreadSection({ onCatClick }) {
     const onScroll = () => {
       const rect = el.getBoundingClientRect();
       const totalH = el.offsetHeight - window.innerHeight;
-      // progress goes 0→1 as user scrolls through sticky height
       const p = Math.max(0, Math.min(1, -rect.top / Math.max(totalH, 1)));
       setProgress(p);
     };
@@ -523,67 +530,82 @@ function ScrollSpreadSection({ onCatClick }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Each card's spread transform: start at center (translateX 0, scale .82, z near)
-  // → end at final position (spread left/center/right, scale 1, z 0)
-  const cardProps = [
-    { startX: "60px",  endX: "0px",   startY: "30px", endY: "0px",  startScale: 0.82, startZ: 20 },
-    { startX: "0px",   endX: "0px",   startY: "-20px", endY: "0px", startScale: 0.9,  startZ: 40 },
-    { startX: "-60px", endX: "0px",   startY: "30px", endY: "0px",  startScale: 0.82, startZ: 20 },
+  // Desktop: cards spread left/center/right with Y offset
+  // Mobile: cards spread only vertically (no horizontal spread) so nothing escapes sideways
+  const cardProps = isMob ? [
+    { startX: "0px", endX: "0px", startY: "24px",  endY: "0px", startScale: 0.88 },
+    { startX: "0px", endX: "0px", startY: "0px",   endY: "0px", startScale: 0.92 },
+    { startX: "0px", endX: "0px", startY: "-24px", endY: "0px", startScale: 0.88 },
+  ] : [
+    { startX: "60px",  endX: "0px", startY: "30px",  endY: "0px", startScale: 0.82 },
+    { startX: "0px",   endX: "0px", startY: "-20px", endY: "0px", startScale: 0.9  },
+    { startX: "-60px", endX: "0px", startY: "30px",  endY: "0px", startScale: 0.82 },
   ];
 
   const eased = progress < 0.5
     ? 4 * progress * progress * progress
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-  // heading font-weight: starts thin (300) → gets bold (900) as cards spread
   const headingWeight = Math.round(300 + eased * 600);
-  const headingSize   = 1.8 + eased * 0.9; // rem
   const emOpacity     = 0.3 + eased * 0.7;
 
+  // On mobile, cards stack vertically — use a scrollable column layout once spread
+  const mobileCardH = isMob ? `clamp(140px, ${140 + eased * 60}px, 200px)` : `clamp(200px, ${200 + eased * 80}px, 280px)`;
+
   return (
-    <div ref={sectionRef} style={{ height: "260vh", position:"relative" }}>
+    <div ref={sectionRef} style={{ height: isMob ? "320vh" : "260vh", position:"relative" }}>
       <div style={{
         position:"sticky", top:0, height:"100vh",
         display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center",
-        overflow:"hidden", padding:"0 clamp(18px,5vw,80px)",
+        /* clip so spread cards never bleed into next section */
+        overflow:"hidden",
+        padding:`0 clamp(18px,5vw,80px)`,
         background:"#FFF8F4",
+        /* extra bottom padding on mobile so last card isn't clipped */
+        paddingBottom: isMob ? "clamp(16px, 6vh, 40px)" : 0,
       }}>
         {/* label */}
         <div style={{
           fontSize:"0.72rem", fontWeight:700, letterSpacing:"0.15em",
           textTransform:"uppercase", color:"#A82438",
-          marginBottom:16, display:"flex", alignItems:"center", gap:9,
+          marginBottom: isMob ? 10 : 16,
+          display:"flex", alignItems:"center", gap:9,
           opacity: 0.4 + eased * 0.6,
+          flexShrink: 0,
         }}>
           <span style={{ width:24, height:2, background:"linear-gradient(90deg,#8B1A2E,#A82438)", display:"inline-block" }}/>
           Collections
           <span style={{ width:24, height:2, background:"linear-gradient(90deg,#A82438,#8B1A2E)", display:"inline-block" }}/>
         </div>
 
-        {/* heading — weight & size animate with scroll */}
+        {/* heading */}
         <h2 style={{
           fontFamily:"Playfair Display,serif",
-          fontSize:`clamp(1.8rem,${headingSize}vw + 1rem, ${1.8 + eased * 1.2}rem)`,
+          fontSize: isMob ? "clamp(1.4rem,5vw,1.9rem)" : `clamp(1.8rem,3vw,2.8rem)`,
           fontWeight: headingWeight,
           lineHeight:1.1, letterSpacing:"-0.02em",
-          color:"#1A0A00", marginBottom:52, textAlign:"center",
-          transition:"font-weight 0.05s",
+          color:"#1A0A00", marginBottom: isMob ? 20 : 44,
+          textAlign:"center", transition:"font-weight 0.05s",
+          flexShrink: 0,
         }}>
           Explore Every{" "}
-          <em style={{
-            fontStyle:"italic", color:"#8B1A2E",
-            opacity: emOpacity,
-            transition:"opacity 0.05s",
-          }}>Flavor</em>{" "}We Craft
+          <em style={{ fontStyle:"italic", color:"#8B1A2E", opacity: emOpacity, transition:"opacity 0.05s" }}>
+            Flavor
+          </em>{" "}We Craft
         </h2>
 
-        {/* cards */}
+        {/* cards container */}
         <div style={{
-          display:"flex", gap: `clamp(12px, ${4 + eased * 2}vw, 28px)`,
-          alignItems:"stretch", justifyContent:"center",
-          width:"100%", maxWidth:1100,
-          flexWrap: "wrap",
+          display:"flex",
+          flexDirection: isMob ? "column" : "row",
+          gap: isMob ? `${8 + eased * 8}px` : `clamp(12px,${4 + eased * 2}vw,28px)`,
+          alignItems:"center",
+          justifyContent:"center",
+          width:"100%",
+          maxWidth: isMob ? 420 : 1100,
+          /* on mobile, make sure the cards container itself clips */
+          overflow: "visible",
         }}>
           {CATS.map((c, i) => {
             const cp = cardProps[i];
@@ -596,31 +618,35 @@ function ScrollSpreadSection({ onCatClick }) {
               <div key={c.cat}
                 onClick={() => eased > 0.6 && onCatClick(c.cat)}
                 style={{
-                  flex:"1 1 220px", maxWidth: 340, minWidth: 180,
+                  flex: isMob ? "none" : "1 1 220px",
+                  width: isMob ? "100%" : undefined,
+                  maxWidth: isMob ? 380 : 340,
+                  minWidth: isMob ? "unset" : 180,
                   borderRadius:20, overflow:"hidden", position:"relative",
-                  height: `clamp(200px, ${200 + eased * 80}px, 280px)`,
+                  height: mobileCardH,
                   transform:`translateX(${tx}) translateY(${ty}) scale(${scale.toFixed(3)})`,
                   opacity: cardOpacity,
                   filter: blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : "none",
                   cursor: eased > 0.6 ? "pointer" : "default",
                   boxShadow: `0 ${8 + eased * 24}px ${20 + eased * 40}px rgba(139,26,46,${(eased * 0.25).toFixed(2)})`,
                   transition:"box-shadow 0.1s",
+                  flexShrink: 0,
                 }}>
                 <div style={{ position:"absolute", inset:0, background:c.grad }}/>
                 <div style={{ position:"absolute", inset:0, opacity:0.06, backgroundImage:"radial-gradient(circle,white 1px,transparent 1px)", backgroundSize:"20px 20px" }}/>
-                <div style={{ position:"absolute", top:18, right:18, fontSize:`${2 + eased}rem`, filter:"drop-shadow(0 4px 12px rgba(0,0,0,0.2))", animation:"float 4s ease-in-out infinite" }}>{c.emoji}</div>
-                <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"20px 18px", background:"linear-gradient(0deg,rgba(0,0,0,0.55) 0%,transparent 100%)" }}>
-                  <div style={{ fontSize:"0.62rem", fontWeight:700, letterSpacing:"0.15em", textTransform:"uppercase", color:"rgba(255,255,255,0.7)", marginBottom:4 }}>{c.tag}</div>
-                  <div style={{ fontFamily:"Playfair Display,serif", fontSize:"clamp(1.1rem,2vw,1.4rem)", fontWeight:900, color:"white", marginBottom:6 }}>{c.name}</div>
-                  <div style={{ fontSize:"0.78rem", color:"rgba(255,255,255,0.65)", display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ position:"absolute", top:14, right:14, fontSize: isMob ? `${1.6 + eased * 0.4}rem` : `${2 + eased}rem`, filter:"drop-shadow(0 4px 12px rgba(0,0,0,0.2))", animation:"float 4s ease-in-out infinite" }}>{c.emoji}</div>
+                <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"16px 16px", background:"linear-gradient(0deg,rgba(0,0,0,0.55) 0%,transparent 100%)" }}>
+                  <div style={{ fontSize:"0.6rem", fontWeight:700, letterSpacing:"0.15em", textTransform:"uppercase", color:"rgba(255,255,255,0.7)", marginBottom:3 }}>{c.tag}</div>
+                  <div style={{ fontFamily:"Playfair Display,serif", fontSize: isMob ? "1.05rem" : "clamp(1.1rem,2vw,1.4rem)", fontWeight:900, color:"white", marginBottom:4 }}>{c.name}</div>
+                  <div style={{ fontSize:"0.75rem", color:"rgba(255,255,255,0.65)", display:"flex", alignItems:"center", gap:8 }}>
                     {c.count}
                     <span style={{
-                      display:"inline-flex", width:26, height:26,
+                      display:"inline-flex", width:24, height:24,
                       alignItems:"center", justifyContent:"center",
                       background: eased > 0.8 ? "white" : "rgba(255,255,255,0.2)",
                       borderRadius:"50%", color: eased > 0.8 ? "#1A0A00" : "white",
                       transform: eased > 0.8 ? "rotate(-45deg)" : "rotate(0)",
-                      transition:"all 0.35s", fontSize:"0.8rem",
+                      transition:"all 0.35s", fontSize:"0.75rem",
                     }}>→</span>
                   </div>
                 </div>
@@ -629,17 +655,17 @@ function ScrollSpreadSection({ onCatClick }) {
           })}
         </div>
 
-        {/* scroll hint when not yet spread */}
+        {/* scroll hint */}
         {eased < 0.3 && (
           <div style={{
-            position:"absolute", bottom:28, left:"50%", transform:"translateX(-50%)",
+            position:"absolute", bottom: isMob ? 14 : 28, left:"50%", transform:"translateX(-50%)",
             display:"flex", flexDirection:"column", alignItems:"center", gap:5,
-            color:"#5C2030", fontSize:"0.68rem", fontWeight:600, letterSpacing:"0.1em",
+            color:"#5C2030", fontSize:"0.65rem", fontWeight:600, letterSpacing:"0.1em",
             textTransform:"uppercase", animation:"pulse 2s ease-in-out infinite",
-            opacity: 1 - eased * 3,
+            opacity: 1 - eased * 3, pointerEvents:"none",
           }}>
             <span>Scroll to explore</span>
-            <div style={{ width:1, height:28, background:"linear-gradient(180deg,rgba(107,48,64,0.5),transparent)" }}/>
+            <div style={{ width:1, height:24, background:"linear-gradient(180deg,rgba(92,32,48,0.5),transparent)" }}/>
           </div>
         )}
       </div>
@@ -1169,49 +1195,94 @@ export default function MasalaMandir() {
 
       </div>{/* end page content */}
 
-      {/* ─── FOOTER — always visible ──────────────────── */}
-      <footer style={{ background:T.dark,color:"white",padding:`68px ${pad} 34px` }}>
-        <div className="fg" style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1.5fr",gap:44,marginBottom:44 }}>
+      {/* ─── FOOTER ───────────────────────────────────── */}
+      <footer style={{
+        background: "#F7F3F1",
+        borderTop: "1px solid rgba(139,26,46,0.1)",
+        padding: "48px clamp(18px,5vw,80px) 0",
+        fontFamily: "Outfit, sans-serif",
+      }}>
+        {/* Main footer grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "40px 48px",
+          marginBottom: 48,
+        }}>
+          {/* Brand column */}
           <div>
-            <img src={LOGO} alt="Masala Mandir" style={{ height:56, width:"auto", objectFit:"contain", marginBottom:13 }}/>
-            <p style={{ color:"rgba(255,255,255,0.45)",lineHeight:1.75,fontSize:"0.87rem",maxWidth:260 }}>Your trusted source for premium hing, kasoori methi, and seasoning blends. Delivering authentic taste and custom spice solutions.</p>
+            <img src={LOGO} alt="Masala Mandir" style={{ height:46, objectFit:"contain", marginBottom:14, display:"block" }}/>
+            <p style={{ color:"#7A6060", fontSize:"0.82rem", lineHeight:1.75, maxWidth:260, margin:0 }}>
+              Premium hing, kasoori methi and seasoning blends rooted in authentic Indian spice heritage.
+            </p>
           </div>
-          {[
-            { title:"Quick Links",links:[["Home","home"],["Products","products"],["Our Story","story"],["B2B / Wholesale","b2b"],["Contact","contact"]] },
-            { title:"Products",   links:[["Hing Powder","products"],["Kasoori Methi","products"],["Seasoning Blends","products"],["Raw Hing","products"]] },
-          ].map(col=>(
-            <div key={col.title}>
-              <div style={{ fontWeight:700,fontSize:"0.8rem",letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(255,255,255,0.55)",marginBottom:17 }}>{col.title}</div>
-              <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                {col.links.map(([label,pg])=>(
-                  <button key={label} onClick={()=>goPage(pg)} style={{ color:"rgba(255,255,255,0.42)",fontSize:"0.85rem",transition:"color 0.3s",background:"none",border:"none",cursor:"pointer",fontFamily:"Outfit,sans-serif",textAlign:"left",padding:0 }} onMouseEnter={e=>e.target.style.color=T.orange} onMouseLeave={e=>e.target.style.color="rgba(255,255,255,0.42)"}>{label}</button>
-                ))}
-              </div>
-            </div>
-          ))}
+
+          {/* Quick Links */}
           <div>
-            <div style={{ fontWeight:700,fontSize:"0.8rem",letterSpacing:"0.06em",textTransform:"uppercase",color:"rgba(255,255,255,0.55)",marginBottom:17 }}>Contact</div>
-            <div style={{ color:"rgba(255,255,255,0.42)",fontSize:"0.85rem",lineHeight:1.9 }}>
-              Ahmedabad, Gujarat — 380004<br/>
-              <a href="mailto:info@masalamandir.com" style={{ color:"rgba(255,255,255,0.42)",textDecoration:"none" }}>info@masalamandir.com</a><br/>
-              <a href="tel:+919408754458" style={{ color:"rgba(255,255,255,0.42)",textDecoration:"none" }}>+91 94087 54458</a>
+            <div style={{ fontSize:"0.68rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:"#A88080", marginBottom:16 }}>Quick Links</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              {[["Home","home"],["Products","products"],["Our Story","story"],["B2B / Wholesale","b2b"],["Contact","contact"]].map(([label,pg])=>(
+                <button key={label} onClick={()=>goPage(pg)} style={{ color:"#5C3A3A", fontSize:"0.84rem", background:"none", border:"none", cursor:"pointer", fontFamily:"Outfit,sans-serif", textAlign:"left", padding:0, transition:"color 0.25s", width:"fit-content" }}
+                  onMouseEnter={e=>e.target.style.color="#8B1A2E"}
+                  onMouseLeave={e=>e.target.style.color="#5C3A3A"}>{label}</button>
+              ))}
             </div>
-            {/* WhatsApp in footer */}
-            <a href="https://wa.me/919408754458" target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex",alignItems:"center",gap:8,background:"#25D366",color:"white",padding:"9px 18px",borderRadius:24,fontWeight:600,textDecoration:"none",fontSize:"0.82rem",fontFamily:"Outfit,sans-serif",marginTop:14,transition:"transform 0.3s" }} onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"} onMouseLeave={e=>e.currentTarget.style.transform=""}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-              WhatsApp Us
-            </a>
+          </div>
+
+          {/* Products */}
+          <div>
+            <div style={{ fontSize:"0.68rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:"#A88080", marginBottom:16 }}>Products</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              {[["Hing Powder","products"],["Kasoori Methi","products"],["Seasoning Blends","products"],["B2B / Private Label","b2b"]].map(([label,pg])=>(
+                <button key={label} onClick={()=>goPage(pg)} style={{ color:"#5C3A3A", fontSize:"0.84rem", background:"none", border:"none", cursor:"pointer", fontFamily:"Outfit,sans-serif", textAlign:"left", padding:0, transition:"color 0.25s", width:"fit-content" }}
+                  onMouseEnter={e=>e.target.style.color="#8B1A2E"}
+                  onMouseLeave={e=>e.target.style.color="#5C3A3A"}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div>
+            <div style={{ fontSize:"0.68rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:"#A88080", marginBottom:16 }}>Contact</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:9, fontSize:"0.84rem", color:"#5C3A3A" }}>
+              <span>Ahmedabad, Gujarat — 380004</span>
+              <a href="mailto:info@masalamandir.com" style={{ color:"#5C3A3A", textDecoration:"none", transition:"color 0.25s" }}
+                onMouseEnter={e=>e.target.style.color="#8B1A2E"}
+                onMouseLeave={e=>e.target.style.color="#5C3A3A"}>info@masalamandir.com</a>
+              <a href="tel:+919408754458" style={{ color:"#5C3A3A", textDecoration:"none", transition:"color 0.25s" }}
+                onMouseEnter={e=>e.target.style.color="#8B1A2E"}
+                onMouseLeave={e=>e.target.style.color="#5C3A3A"}>+91 94087 54458</a>
+              <a href="https://wa.me/919408754458" target="_blank" rel="noopener noreferrer"
+                style={{ display:"inline-flex", alignItems:"center", gap:7, color:"#25A84E", textDecoration:"none", fontWeight:600, fontSize:"0.82rem", marginTop:4, transition:"opacity 0.25s" }}
+                onMouseEnter={e=>e.currentTarget.style.opacity="0.8"}
+                onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#25A84E"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                WhatsApp Us
+              </a>
+            </div>
           </div>
         </div>
-        <div style={{ borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:26,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:13 }}>
-          <div style={{ color:"rgba(255,255,255,0.28)",fontSize:"0.8rem" }}>© 2025 Masala Mandir. All rights reserved. Made with 🌶️ in Ahmedabad.</div>
-          <div style={{ display:"flex",gap:9 }}>
-            {["f","𝕏","▶"].map(s=>(
-              <a key={s} href="#" style={{ width:33,height:33,borderRadius:"50%",background:"rgba(255,255,255,0.07)",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.42)",textDecoration:"none",fontSize:"0.8rem",transition:"background 0.3s,color 0.3s" }} onMouseEnter={e=>{e.target.style.background="#8B1A2E";e.target.style.color="white";}} onMouseLeave={e=>{e.target.style.background="rgba(255,255,255,0.07)";e.target.style.color="rgba(255,255,255,0.42)";}}>
-                {s}
-              </a>
-            ))}
-          </div>
+
+        {/* Divider */}
+        <div style={{ height:1, background:"rgba(139,26,46,0.1)", marginBottom:20 }}/>
+
+        {/* Bottom bar — two lines stacked, centered */}
+        <div style={{ textAlign:"center", paddingBottom:28 }}>
+          <p style={{ fontSize:"0.78rem", color:"#9A7878", margin:"0 0 6px", letterSpacing:"0.01em", lineHeight:1.6 }}>
+            © 2026 Masala Mandir. All rights reserved. Infused with authentic Indian flavors.
+          </p>
+          <p style={{ fontSize:"0.75rem", color:"#B89898", margin:0, lineHeight:1.6 }}>
+            Powered by{" "}
+            <a
+              href="https://morphedai.org/web-studio/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color:"#8B1A2E", textDecoration:"none", fontWeight:600, borderBottom:"1px solid transparent", transition:"border-color 0.25s, color 0.25s" }}
+              onMouseEnter={e=>{ e.target.style.borderBottomColor="#8B1A2E"; e.target.style.color="#A82438"; }}
+              onMouseLeave={e=>{ e.target.style.borderBottomColor="transparent"; e.target.style.color="#8B1A2E"; }}
+            >Morphed AI Pvt. Ltd.</a>
+            {" "}admin@morphedai.org
+          </p>
         </div>
       </footer>
 
