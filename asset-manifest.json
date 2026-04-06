@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/masala_mandir/static/js/main.bc72a51e.js",
+    "main.js": "/masala_mandir/static/js/main.b9cc88dd.js",
     "index.html": "/masala_mandir/index.html",
-    "main.bc72a51e.js.map": "/masala_mandir/static/js/main.bc72a51e.js.map"
+    "main.b9cc88dd.js.map": "/masala_mandir/static/js/main.b9cc88dd.js.map"
   },
   "entrypoints": [
-    "static/js/main.bc72a51e.js"
+    "static/js/main.b9cc88dd.js"
   ]
 }
